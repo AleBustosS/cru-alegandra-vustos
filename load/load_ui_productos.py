@@ -3,16 +3,29 @@ import sys
 from PyQt5 import QtCore
 from PyQt5.QtCore import QPropertyAnimation
 from PyQt5 import QtCore, QtGui, QtWidgets, uic  
+from PyQt5.QtCore import QThreadPool
 from modelo.productodao import ProductoDAO
+from .worker import Worker
 #2.- Cargar archivo .ui
 class Load_ui_productos(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        # Cargar archivo .ui
-        uic.loadUi("ui/ui_productos.ui", self)
-        self.show()
-
+        # Cargar archivo .ui usando ruta absoluta para mayor velocidad
+        import os
+        ui_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ui", "ui_productos.ui")
+        uic.loadUi(ui_file, self)
+        
+        # Crear DAO una sola vez
         self.productodao = ProductoDAO()
+        
+        # Configurar la interfaz
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Configura la interfaz una sola vez al inicio"""
+        # Eliminar barra de título y configurar opacidad
+        self.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+        self.setWindowOpacity(1)
         
 #3.- Configurar contenedores
 
@@ -82,16 +95,38 @@ class Load_ui_productos(QtWidgets.QMainWindow):
         pass
     
     def llenar_tabla(self):
-        datos = self.productodao.listarProductos()
-        self.tabla_productos.setRowCount(len(datos))
-        fila = 0
+        # Ejecutar en background para no bloquear la UI
+        def handle_result(datos):
+            try:
+                datos = datos or []
+                self.tabla_productos.setRowCount(len(datos))
+                fila = 0
+                for item in datos:
+                    # Asegurar que no dé error si columnas faltan
+                    if len(item) > 1:
+                        self.tabla_productos.setItem(fila,0,QtWidgets.QTableWidgetItem(str(item[1])))
+                    if len(item) > 2:
+                        self.tabla_productos.setItem(fila,1,QtWidgets.QTableWidgetItem(str(item[2])))
+                    if len(item) > 3:
+                        self.tabla_productos.setItem(fila,2,QtWidgets.QTableWidgetItem(str(item[3])))
+                    if len(item) > 4:
+                        self.tabla_productos.setItem(fila,3,QtWidgets.QTableWidgetItem(str(item[4])))
+                    fila += 1
+            except Exception:
+                pass
 
-        for item in datos:
-            self.tabla_productos.setItem(fila,0,QtWidgets.QTableWidgetItem(item[1]))
-            self.tabla_productos.setItem(fila,1,QtWidgets.QTableWidgetItem(item[2]))
-            self.tabla_productos.setItem(fila,2,QtWidgets.QTableWidgetItem(str(item[3])))
-            self.tabla_productos.setItem(fila,3,QtWidgets.QTableWidgetItem(str(item[4])))
-            fila += 1
+        def handle_error(err):
+            e, tb = err
+            try:
+                from PyQt5.QtWidgets import QMessageBox
+                QMessageBox.warning(self, 'Error', f'Error al listar productos: {e}\n{tb}')
+            except Exception:
+                pass
+
+        worker = Worker(self.productodao.listarProductos)
+        worker.signals.result.connect(handle_result)
+        worker.signals.error.connect(handle_error)
+        QThreadPool.globalInstance().start(worker)
    
     def limpiar_formulario(self):
 

@@ -14,11 +14,8 @@ class ClienteDAO:
         sp = "exec [dbo].[sp_ListarClientes]"
         cursor.execute(sp)
         filas = cursor.fetchall()
-
-        for fila in filas:
-            print(fila)
-
         self.bd.cerrarConexionBD()
+        return filas
 
     def guardarCliente(self):
         self.bd.establecerConexionBD()
@@ -87,8 +84,5 @@ class ClienteDAO:
         sp = "exec [dbo].[sp_BuscarClientes] @termino=?"
         cursor.execute(sp, (termino,))
         filas = cursor.fetchall()
-
-        for fila in filas:
-            print(fila)
-
         self.bd.cerrarConexionBD()
+        return filas
